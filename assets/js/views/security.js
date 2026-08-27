@@ -1,7 +1,7 @@
 import { el, reportError, toast } from '../util.js';
 import { card, settingRow, spinner, emptyState } from '../components.js';
 
-const FIELDS = [
+export const FIELDS = [
   { key: 'threatIntelligenceFeeds', title: 'מודיעין איומים (Threat Intelligence)', desc: 'חסימת דומיינים ממאגרי איומים בזמן אמת' },
   { key: 'aiThreatDetection', title: 'זיהוי איומים מבוסס AI', desc: 'זיהוי דומיינים זדוניים חדשים באמצעות בינה מלאכותית' },
   { key: 'googleSafeBrowsing', title: 'Google Safe Browsing', desc: 'חסימת אתרי דיוג (Phishing) ותוכנות זדוניות' },

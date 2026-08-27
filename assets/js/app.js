@@ -102,19 +102,30 @@ function renderGate(errorMsg) {
 function renderShell() {
   app.innerHTML = '';
   const sidebar = el('div', { class: 'sidebar' });
+  const backdrop = el('div', { class: 'sidebar-backdrop' });
   const main = el('div', { class: 'main' });
-  app.appendChild(el('div', { class: 'shell' }, [sidebar, main]));
+
+  const topbarTitle = el('span', { class: 'topbar__title' }, 'מנהל NextDNS');
+  const closeDrawer = () => { sidebar.classList.remove('open'); backdrop.classList.remove('open'); };
+  const openDrawer = () => { sidebar.classList.add('open'); backdrop.classList.add('open'); };
+  backdrop.addEventListener('click', closeDrawer);
+  const topbar = el('div', { class: 'topbar' }, [
+    el('button', { class: 'topbar__menu-btn', onclick: openDrawer, 'aria-label': 'תפריט' }, '☰'),
+    topbarTitle,
+  ]);
+
+  app.appendChild(el('div', { class: 'shell' }, [topbar, backdrop, sidebar, main]));
 
   buildSidebar(sidebar);
 
-  onRouteChange((route) => renderRoute(main, sidebar, route));
+  onRouteChange((route) => { closeDrawer(); renderRoute(main, sidebar, route, topbarTitle); });
   let route = currentRoute();
   if (route.page === 'profile' && !route.profileId) {
     const last = store.getLastProfile();
     const fallback = profiles.find((p) => p.id === last) ? last : profiles[0]?.id;
     if (fallback) { navigate(fallback, 'overview'); return; }
   }
-  renderRoute(main, sidebar, route);
+  renderRoute(main, sidebar, route, topbarTitle);
 }
 
 function buildSidebar(sidebar) {
@@ -181,8 +192,9 @@ async function disconnect() {
   location.reload();
 }
 
-async function renderRoute(main, sidebar, route) {
+async function renderRoute(main, sidebar, route, topbarTitle) {
   if (route.page === 'bulk') {
+    if (topbarTitle) topbarTitle.textContent = 'החלת הגדרות';
     main.innerHTML = '';
     main.appendChild(el('div', { class: 'main__header' }, [
       el('div', {}, [
@@ -207,6 +219,7 @@ async function renderRoute(main, sidebar, route) {
   if (!route.profileId) { main.innerHTML = ''; main.appendChild(el('div', { class: 'empty-state' }, 'צור פרופיל כדי להתחיל')); return; }
   const profile = profiles.find((p) => p.id === route.profileId);
   const tabDef = TABS.find((t) => t.key === route.tab) || TABS[0];
+  if (topbarTitle) topbarTitle.textContent = `${profile?.name || route.profileId} · ${tabDef.label}`;
 
   main.innerHTML = '';
   main.appendChild(el('div', { class: 'main__header' }, [
@@ -232,6 +245,7 @@ async function renderRoute(main, sidebar, route) {
         if (p) p.name = name;
         buildSidebar(sidebar);
         main.querySelector('.main__title').textContent = name || id;
+        if (topbarTitle) topbarTitle.textContent = `${name || id} · ${tabDef.label}`;
       },
       onProfileDeleted: (id) => {
         profiles = profiles.filter((x) => x.id !== id);
