@@ -1,7 +1,13 @@
-// עטיפה קלה מעל NextDNS API. כל הבקשות יוצאות ישירות מהדפדפן אל api.nextdns.io.
-// אין שרת ביניים - מפתח ה-API נשמר רק ב-localStorage של המשתמש.
+// עטיפה קלה מעל NextDNS API.
+//
+// חשוב: ל-NextDNS אין תמיכה ב-CORS עבור קריאות ישירות מהדפדפן ממקור (origin) חיצוני
+// כמו GitHub Pages - קריאה ישירה ל-api.nextdns.io תיחסם על ידי הדפדפן. לכן, אלא אם
+// הוגדר proxyUrl (ראו מסך ההתחברות > "הגדרות התחברות מתקדמות"), הבקשות עלולות להיכשל.
+// ה-proxy הוא פונקציית Cloudflare Worker קטנה וחינמית שמעבירה את הבקשה הלאה בלי
+// לשמור/לתעד את מפתח ה-API - ראו את תיקיית worker/ ואת ה-README להוראות פריסה.
+// המפתח עצמו תמיד נשמר רק ב-localStorage של הדפדפן שלכם.
 
-const BASE_URL = 'https://api.nextdns.io';
+const DIRECT_BASE_URL = 'https://api.nextdns.io';
 
 export class ApiError extends Error {
   constructor(status, message, body) {
@@ -12,15 +18,20 @@ export class ApiError extends Error {
 }
 
 export class NextDnsApi {
-  constructor(apiKey) {
+  constructor(apiKey, proxyUrl) {
     this.apiKey = apiKey;
+    this.proxyUrl = (proxyUrl || '').trim().replace(/\/$/, '');
+  }
+
+  get baseUrl() {
+    return this.proxyUrl ? `${this.proxyUrl}/api/nextdns` : DIRECT_BASE_URL;
   }
 
   async request(method, path, body) {
     if (!this.apiKey) throw new ApiError(401, 'לא הוגדר מפתח API');
     let res;
     try {
-      res = await fetch(BASE_URL + path, {
+      res = await fetch(this.baseUrl + path, {
         method,
         headers: {
           'X-Api-Key': this.apiKey,
@@ -29,7 +40,10 @@ export class NextDnsApi {
         body: body !== undefined ? JSON.stringify(body) : undefined,
       });
     } catch (e) {
-      throw new ApiError(0, 'לא ניתן להתחבר ל-NextDNS. בדוק חיבור אינטרנט.', null);
+      const msg = this.proxyUrl
+        ? 'לא ניתן להתחבר לפרוקסי שהוגדר. ודאו שכתובת ה-Worker נכונה ושהוא פעיל (ראו "הגדרות התחברות מתקדמות").'
+        : 'לא ניתן להתחבר ישירות ל-NextDNS מהדפדפן - כנראה בגלל חסימת CORS מצידם. יש להגדיר פרוקסי חינמי דרך "הגדרות התחברות מתקדמות" במסך ההתחברות (ראו הוראות ב-README).';
+      throw new ApiError(0, msg, null);
     }
 
     if (res.status === 204) return null;
