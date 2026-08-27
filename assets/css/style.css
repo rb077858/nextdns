@@ -119,6 +119,22 @@ button { font-family: inherit; }
   text-align: right;
 }
 .gate__card input:focus { outline: none; border-color: var(--accent); }
+.gate__advanced {
+  border: 1.5px solid var(--card-border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  background: var(--bg);
+}
+.gate__advanced summary {
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+  list-style: none;
+}
+.gate__advanced summary::-webkit-details-marker { display: none; }
+.gate__advanced[open] summary { color: var(--text); margin-bottom: 4px; }
 .gate__note {
   display: flex;
   gap: 8px;
@@ -212,6 +228,7 @@ button { font-family: inherit; }
   color: var(--text-dim); font-size: 13.5px; cursor: pointer; background: none; border: none; text-align: right;
 }
 .sidebar__link:hover { background: var(--accent-soft); color: var(--text); }
+.sidebar__link.active { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
 
 .main { flex: 1; min-width: 0; padding: 28px 34px 60px; }
 .main__header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }

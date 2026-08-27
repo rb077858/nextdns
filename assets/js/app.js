@@ -2,7 +2,7 @@ import { NextDnsApi, ApiError } from './nextdns-api.js';
 import { store } from './store.js';
 import { el, reportError, toast } from './util.js';
 import { tabsBar, spinner, confirmModal } from './components.js';
-import { currentRoute, navigate, onRouteChange } from './router.js';
+import { currentRoute, navigate, navigateBulk, onRouteChange } from './router.js';
 
 const TABS = [
   { key: 'overview', label: 'סקירה כללית', icon: '🏠', mod: () => import('./views/overview.js') },
@@ -23,7 +23,7 @@ let profiles = [];
 async function boot() {
   const key = store.getApiKey();
   if (!key) return renderGate();
-  api = new NextDnsApi(key);
+  api = new NextDnsApi(key, store.getProxyUrl());
   try {
     profiles = await api.listProfiles();
   } catch (e) {
@@ -39,19 +39,22 @@ async function boot() {
 function renderGate(errorMsg) {
   app.innerHTML = '';
   const input = el('input', { type: 'password', placeholder: 'מפתח ה-API שלכם', autocomplete: 'off' });
+  const proxyInput = el('input', { type: 'text', placeholder: 'https://your-worker.your-name.workers.dev', style: 'direction:ltr;text-align:left', value: store.getProxyUrl() });
   const btn = el('button', { class: 'btn btn--full', onclick: () => connect() }, 'התחבר');
-  const errBox = errorMsg ? el('p', { style: 'color:var(--red);font-size:13px;margin-top:-8px' }, errorMsg) : null;
+  const errBox = errorMsg ? el('p', { style: 'color:var(--red);font-size:13px;margin-top:-8px;margin-bottom:14px' }, errorMsg) : null;
 
   async function connect() {
     const val = input.value.trim();
     if (!val) { toast('נא להזין מפתח API', 'error'); return; }
+    const proxyVal = proxyInput.value.trim();
     btn.disabled = true;
     btn.innerHTML = '';
     btn.appendChild(el('span', { class: 'spinner' }));
     try {
-      const testApi = new NextDnsApi(val);
+      const testApi = new NextDnsApi(val, proxyVal);
       profiles = await testApi.testConnection();
       store.setApiKey(val);
+      store.setProxyUrl(proxyVal);
       api = testApi;
       renderShell();
     } catch (e) {
@@ -66,17 +69,27 @@ function renderGate(errorMsg) {
     el('div', { class: 'gate__card' }, [
       el('div', { class: 'gate__logo' }, '🛡️'),
       el('h1', {}, 'מנהל NextDNS'),
-      el('p', {}, 'ניהול מלא של פרופילי NextDNS - בקרת הורים, לוחות זמנים, חסימת אתרים ומכשירים. הכל רץ בדפדפן שלכם בלבד, ללא שרת.'),
+      el('p', {}, 'ניהול מלא של פרופילי NextDNS - בקרת הורים, לוחות זמנים, חסימת אתרים ומכשירים. הכל רץ בדפדפן שלכם בלבד, ללא שרת משלכם.'),
       errBox,
       el('div', { class: 'field' }, [
         el('label', {}, 'מפתח API'),
         input,
       ]),
+      el('details', { class: 'gate__advanced', open: true }, [
+        el('summary', {}, '⚙️ הגדרות התחברות מתקדמות (פרוקסי CORS)'),
+        el('p', { style: 'font-size:12.5px;color:var(--text-dim);line-height:1.7;margin:8px 0' }, [
+          'ל-NextDNS אין תמיכה בקריאות ישירות מהדפדפן ממקור חיצוני (CORS), כך שבדרך כלל תצטרכו כתובת של פרוקסי קטן וחינמי שמעביר את הבקשות הלאה בלי לשמור כלום. ההוראות המלאות (2 דקות, ללא צורך בכרטיס אשראי) נמצאות ב-README תחת "פרוקסי CORS חינמי". השאירו ריק כדי לנסות חיבור ישיר.',
+        ]),
+        el('div', { class: 'field' }, [
+          el('label', {}, 'כתובת ה-Worker (אופציונלי)'),
+          proxyInput,
+        ]),
+      ]),
       btn,
       el('div', { class: 'gate__note' }, [
         el('span', {}, '🔒'),
         el('span', {}, [
-          'המפתח נשמר רק במכשיר שלכם (localStorage) ונשלח ישירות ל-NextDNS בלבד - לא לשום שרת אחר. ניתן למצוא את המפתח בתחתית ',
+          'המפתח נשמר רק במכשיר שלכם (localStorage) ונשלח לפרוקסי (אם הוגדר) ולNextDNS בלבד - הפרוקסי שקוף ולא שומר דבר. ניתן למצוא את המפתח בתחתית ',
           el('a', { href: 'https://my.nextdns.io/account', target: '_blank', rel: 'noopener' }, 'עמוד החשבון שלכם'),
           '.',
         ]),
@@ -96,7 +109,7 @@ function renderShell() {
 
   onRouteChange((route) => renderRoute(main, sidebar, route));
   let route = currentRoute();
-  if (!route.profileId) {
+  if (route.page === 'profile' && !route.profileId) {
     const last = store.getLastProfile();
     const fallback = profiles.find((p) => p.id === last) ? last : profiles[0]?.id;
     if (fallback) { navigate(fallback, 'overview'); return; }
@@ -115,7 +128,7 @@ function buildSidebar(sidebar) {
     profiles.forEach((p) => {
       const route = currentRoute();
       listEl.appendChild(el('div', {
-        class: `profile-item ${route.profileId === p.id ? 'active' : ''}`,
+        class: `profile-item ${route.page === 'profile' && route.profileId === p.id ? 'active' : ''}`,
         onclick: () => { store.setLastProfile(p.id); navigate(p.id, 'overview'); },
       }, [el('span', { class: 'profile-item__dot' }), el('span', {}, p.name || p.id)]));
     });
@@ -139,6 +152,15 @@ function buildSidebar(sidebar) {
   } }, '➕ פרופיל חדש');
   sidebar.appendChild(addBtn);
 
+  const bulkBtn = el('button', {
+    class: 'sidebar__link', style: 'margin-top:14px',
+    onclick: () => navigateBulk(),
+  }, [el('span', {}, '🔁'), el('span', {}, 'החלה על מספר פרופילים')]);
+  sidebar.appendChild(bulkBtn);
+  onRouteChange(() => {
+    bulkBtn.classList.toggle('active', currentRoute().page === 'bulk');
+  });
+
   sidebar.appendChild(el('div', { class: 'sidebar__footer' }, [
     el('button', { class: 'sidebar__link', onclick: toggleTheme }, [el('span', {}, '🌓'), el('span', {}, 'החלף מצב תצוגה')]),
     el('button', { class: 'sidebar__link', onclick: disconnect }, [el('span', {}, '🚪'), el('span', {}, 'התנתק')]),
@@ -160,6 +182,28 @@ async function disconnect() {
 }
 
 async function renderRoute(main, sidebar, route) {
+  if (route.page === 'bulk') {
+    main.innerHTML = '';
+    main.appendChild(el('div', { class: 'main__header' }, [
+      el('div', {}, [
+        el('h1', { class: 'main__title' }, 'החלת הגדרות על מספר פרופילים'),
+        el('div', { class: 'main__subtitle' }, `${profiles.length} פרופילים זמינים`),
+      ]),
+    ]));
+    const content = el('div', {});
+    main.appendChild(content);
+    content.appendChild(spinner());
+    try {
+      const mod = await import('./views/bulk.js');
+      content.innerHTML = '';
+      await mod.render(content, { api, profiles });
+    } catch (e) {
+      content.innerHTML = '';
+      reportError(e);
+    }
+    return;
+  }
+
   if (!route.profileId) { main.innerHTML = ''; main.appendChild(el('div', { class: 'empty-state' }, 'צור פרופיל כדי להתחיל')); return; }
   const profile = profiles.find((p) => p.id === route.profileId);
   const tabDef = TABS.find((t) => t.key === route.tab) || TABS[0];
